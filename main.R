@@ -10,3 +10,8 @@ selected_columns <- data %>%
 # View the selected columns
 print(selected_columns)
 
+<<<<<<< HEAD
+=======
+print("Hello world")
+print("hi")
+>>>>>>> c3e38e95e3f52df74389a72b37b5fbbe2ea20366
