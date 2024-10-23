@@ -18,5 +18,20 @@ getmode=function(v){
   uniqv[which.max(tabulate(match(v, uniqv)))]
 }
 getmode(df$employment)
-df$employment=replace(df$furnishing, is.na(df$furnishing), getmode(df$furnishing))
-table(df$furnishing)
+df$employment=replace(df$employment, is.na(df$employment), getmode(df$employment))
+table(df$employment)
+
+#See unique value
+unique(df$employment)
+
+#Clean NA in credit_amount
+View(df[is.na(df$credit_amount), ])
+df$credit_amount[is.na(df$credit_amount)] <- mean(df$credit_amount, na.rm = TRUE)
+
+# Load necessary libraries
+
+
+# Round the credit_amount column to 2 decimal places
+df$credit_amount <- round(df$credit_amount, 2)
+View(data)
+
