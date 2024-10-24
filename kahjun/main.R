@@ -14,9 +14,10 @@ remove_high_na_rows <- function(data, threshold = 70) {
   
   return(cleaned_data)
 }
-
-
-mean_imputation <- function(data, column_name) {
+mean_median_imputation  <- function(data, column_name, method = c("mean", "median")) {
+  # Match the method input to either "mean" or "median"
+  method <- match.arg(method)
+  
   # Extract the specified column
   column <- data[[column_name]]
   
@@ -33,19 +34,24 @@ mean_imputation <- function(data, column_name) {
   cat("The lowest value in '", column_name, "' is: ", lowest_value, "\n", sep = "")
   
   if (any(is.na(column))) {
-    # Calculate the mean of the column, excluding NA values
-    mean_value <- mean(column, na.rm = TRUE)
+    # Calculate the mean or median of the column, excluding NA values
+    if (method == "mean") {
+      imputed_value <- mean(column, na.rm = TRUE)
+      cat("Missing values in '", column_name, "' have been filled with the mean value: ", imputed_value, "\n", sep = "")
+    } else {
+      imputed_value <- median(column, na.rm = TRUE)
+      cat("Missing values in '", column_name, "' have been filled with the median value: ", imputed_value, "\n", sep = "")
+    }
     
-    # Replace NA values in the column with the calculated mean
-    data[[column_name]][is.na(column)] <- mean_value
-    
-    cat("Missing values in '", column_name, "' have been filled with the mean value: ", mean_value, "\n", sep = "")
+    # Replace NA values in the column with the calculated value
+    data[[column_name]][is.na(column)] <- imputed_value
   } else {
     cat("No missing values found in '", column_name, "'. No imputation needed.\n", sep = "")
   }
   
   return(data)
 }
+
 
 mice_imputation <- function(data, column_name, m = 5) {
   # Check if the column exists in the dataset
@@ -85,15 +91,50 @@ mice_imputation <- function(data, column_name, m = 5) {
   return(completed_data)
 }
 
-
+replace_empty_with_na <- function(data, column_name) {
+  # Check if the column exists in the dataframe
+  if (!column_name %in% names(data)) {
+    stop(paste("Column", column_name, "does not exist in the data frame."))
+  }
   
-completed_data <- mice_imputation (data, column_name = "personal_status", m = 5)
+  # Extract the specified column
+  column <- data[[column_name]]
+  
+  # Replace empty strings with NA
+  data[[column_name]][column == ""] <- NA
+  
+  cat("Empty strings in '", column_name, "' have been replaced with NA.\n", sep = "")
+  
+  return(data)
+}
 
-data$personal_status <- completed_data$personal_status
+cleaned_data <- data %>%
+  remove_high_na_rows() %>%
+  replace_empty_with_na("duration") %>%
+  mean_median_imputation("duration", method = "mean") %>%
+  replace_empty_with_na("purpose") %>%
+  mice_imputation("purpose") %>%
+  replace_empty_with_na("savings_status") %>%
+  mice_imputation("savings_status") %>%
+  replace_empty_with_na("personal_status") %>%
+  mice_imputation("personal_status") %>%
+  replace_empty_with_na("other_parties") %>%
+  mice_imputation("other_parties") %>%
+  replace_empty_with_na("property_magnitude") %>%
+  mice_imputation("property_magnitude") %>%
+  replace_empty_with_na("other_payment_plans") %>%
+  mice_imputation("other_payment_plans") %>%
+  replace_empty_with_na("housing") %>%
+  mice_imputation("housing") %>%
+  replace_empty_with_na("existing_credits") %>%
+  mean_median_imputation("existing_credits", method = "median") %>%
+  replace_empty_with_na("job") %>%
+  mice_imputation("job")
 
-data$personal_status
+# Check the cleaned data
+head(cleaned_data)
 
-personal_status_counts <- data %>%
-  count(personal_status)
 
-print(personal_status_counts)
+
+
+
