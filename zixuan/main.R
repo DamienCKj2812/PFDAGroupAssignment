@@ -22,6 +22,7 @@ getmode=function(v){
   uniqv<- unique(v)
   uniqv[which.max(tabulate(match(v, uniqv)))]
 }
+
 getmode(data$employment)
 data$employment=replace(data$employment, is.na(data$employment), getmode(data$employment))
 table(data$employment)
