@@ -6,6 +6,9 @@ library(VIM)
 library(caret)
 library(RANN)
 
+data <- read.csv("../5. credit_risk_classification.csv")
+
+print(sum(is.na(data$credit_history)))
 # KNN Imputation Function
 knn_imputation <- function(data, target_column, class_column, k_value = 10) {
   
@@ -29,7 +32,13 @@ knn_imputation <- function(data, target_column, class_column, k_value = 10) {
 
 # Usage:
 # data <- knn_imputation(data, "credit_history", "class", k_value = 10)
+# total_na_credit_history <- sum(is.na(data$credit_history))
+# print(total_na_credit_history)
 
+
+
+
+print(sum(is.na(data$age)))
 
 # Manual Hot Deck Imputation Function for Age
 manual_hot_deck_imputation <- function(data, age_column, employment_column) {
@@ -84,4 +93,6 @@ manual_hot_deck_imputation <- function(data, age_column, employment_column) {
 }
 
 # Usage:
-# data <- manual_hot_deck_imputation(data, "age", "employment")
+data <- manual_hot_deck_imputation(data, "age", "employment")
+total_na_age <- sum(is.na(data$age))
+print(total_na_age)
