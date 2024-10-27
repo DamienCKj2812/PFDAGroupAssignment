@@ -1,150 +1,179 @@
+# Load necessary libraries
+# install.packages("VIM")
+# install.packages("caret")
+# install.packages("RANN")
+library(VIM)
+library(caret)
+library(RANN)
 library(tidyr)
 library(dplyr)
 library(mice)
+library(magrittr)
+
 data <- read.csv("../5. credit_risk_classification.csv")
 
-
-# functions for the imputation -------------------------------------------------------------
-
+# Imputation functions -------------------------------------------------------------
 
 # Function to remove rows with high percentages of NA values
 remove_high_na_rows <- function(data, threshold = 70) {
-  # Calculate percentage of NA values per row
   na_percentage <- rowMeans(is.na(data)) * 100
-  
-  # Remove rows where NA percentage exceeds the threshold
   cleaned_data <- data[na_percentage <= threshold, ]
-  
   return(cleaned_data)
 }
 
-
 mean_median_mode_imputation <- function(data, column_name, method = c("mean", "median", "mode")) {
-  # Match the method input to either "mean", "median", or "mode"
   method <- match.arg(method)
-  
-  # Extract the specified column
   column <- data[[column_name]]
   
-  # Check for negative values in the column
-  if (any(column < 0, na.rm = TRUE)) {
-    cat("Warning: There are negative values in '", column_name, "'.\n", sep = "")
-    return(data)  # Optionally return early to prevent further processing
-  }
-  
-  # Report highest and lowest values in the column
-  highest_value <- max(column, na.rm = TRUE)
-  lowest_value <- min(column, na.rm = TRUE)
-  
-  cat("The highest value in '", column_name, "' is: ", highest_value, "\n", sep = "")
-  cat("The lowest value in '", column_name, "' is: ", lowest_value, "\n", sep = "")
-  
-  if (any(is.na(column))) {
-    # Imputation logic based on the selected method
-    if (method == "mean") {
-      imputed_value <- mean(column, na.rm = TRUE)
-      cat("Missing values in '", column_name, "' have been filled with the mean value: ", imputed_value, "\n", sep = "")
-    } else if (method == "median") {
-      imputed_value <- median(column, na.rm = TRUE)
-      cat("Missing values in '", column_name, "' have been filled with the median value: ", imputed_value, "\n", sep = "")
-    } else if (method == "mode") {
-      # Calculate the mode (most frequent value)
-      imputed_value <- as.numeric(names(sort(table(column), decreasing = TRUE)[1]))
-      cat("Missing values in '", column_name, "' have been filled with the mode value: ", imputed_value, "\n", sep = "")
+  if (method == "mode") {
+    # Mode calculation for categorical data
+    if (is.character(column) || is.factor(column)) {
+      mode_value <- names(sort(table(column), decreasing = TRUE))[1]
+      data[[column_name]][is.na(column)] <- mode_value
+    } else {
+      cat("Mode is not applicable for numerical data in this context.\n")
+    }
+  } else {
+    # For mean and median, only apply to numeric data
+    if (!is.numeric(column)) {
+      stop("Mean and median imputations can only be applied to numeric columns.")
+    }
+    if (any(column < 0, na.rm = TRUE)) {
+      cat("Warning: There are negative values in '", column_name, "'.\n", sep = "")
+      return(data)
     }
     
-    # Replace NA values in the column with the calculated imputation value
-    data[[column_name]][is.na(column)] <- imputed_value
-  } else {
-    cat("No missing values found in '", column_name, "'. No imputation needed.\n", sep = "")
+    highest_value <- max(column, na.rm = TRUE)
+    lowest_value <- min(column, na.rm = TRUE)
+    cat("Highest value in '", column_name, "': ", highest_value, "\n", sep = "")
+    cat("Lowest value in '", column_name, "': ", lowest_value, "\n", sep = "")
+    
+    if (any(is.na(column))) {
+      imputed_value <- switch(method,
+                              mean = mean(column, na.rm = TRUE),
+                              median = median(column, na.rm = TRUE))
+      data[[column_name]][is.na(column)] <- imputed_value
+    } else {
+      cat("No missing values in '", column_name, "'.\n", sep = "")
+    }
   }
   
   return(data)
 }
 
 
-
 mice_imputation <- function(data, column_name, m = 5) {
-  # Check if the column exists in the dataset
-  if (!(column_name %in% names(data))) {
-    stop(paste("Error: The column", column_name, "does not exist in the dataset."))
-  }
-  
-  # Extract the specified column as a vector
-  column <- data[[column_name]]
-  
-  # Check the NA count before imputation
-  na_count_before <- sum(is.na(column))
-  message("NA count before imputation: ", na_count_before)
-  
-  # Ensure the column is a factor
-  data[[column_name]] <- as.factor(column)
-  
-  # Specify imputation methods
+  if (!(column_name %in% names(data))) stop(paste("Error: Column", column_name, "does not exist."))
+  data[[column_name]] <- as.factor(data[[column_name]])
   imputation_methods <- make.method(data)
-  imputation_methods[column_name] <- "polyreg"  # Use polyreg for categorical variables
-  
-  # Run the mice algorithm with the specified number of imputations
+  imputation_methods[column_name] <- "polyreg"
   imputed_data <- mice(data, method = imputation_methods, m = m)
-  
-  # Check the imputed values for the specified column
-  message("Imputed values for the column: ", column_name)
-  print(imputed_data$imp[[column_name]])
-  
-  # Extract the completed dataset (after imputation)
   completed_data <- complete(imputed_data, 1)
-  
-  # Check the NA count after imputation
-  na_count_after <- sum(is.na(completed_data[[column_name]]))
-  message("NA count after imputation: ", na_count_after)
-  
-  # Return the completed dataset
   return(completed_data)
 }
 
 replace_empty_with_na <- function(data, column_name) {
-  # Check if the column exists in the dataframe
-  if (!column_name %in% names(data)) {
-    stop(paste("Column", column_name, "does not exist in the data frame."))
-  }
-  
-  # Extract the specified column
-  column <- data[[column_name]]
-  
-  # Replace empty strings with NA
-  data[[column_name]][column == ""] <- NA
-  
-  cat("Empty strings in '", column_name, "' have been replaced with NA.\n", sep = "")
-  
+  if (!column_name %in% names(data)) stop(paste("Column", column_name, "does not exist."))
+  data[[column_name]][data[[column_name]] == ""] <- NA
   return(data)
 }
 
-# ------------------------------------------------------------------------------------------
-data$employment = mean_median_mode_imputation(data, "employment", method = "mode")
-data$employment
+knn_imputation <- function(data, target_column, class_column, k_value = 10) {
+  df <- data.frame(credit_hist = data[[target_column]], credit_class = data[[class_column]])
+  df$credit_hist <- as.factor(df$credit_hist)
+  imputed_data <- kNN(df, variable = "credit_hist", k = k_value)
+  data[[target_column]] <- imputed_data$credit_hist
+  return(data)
+}
 
-# cleaned_data <- data %>%
-#   remove_high_na_rows() %>%
-#   replace_empty_with_na("duration") %>%
-#   mean_median_imputation("duration", method = "mean") %>%
-#   replace_empty_with_na("purpose") %>%
-#   mice_imputation("purpose") %>%
-#   replace_empty_with_na("savings_status") %>%
-#   mice_imputation("savings_status") %>%
-#   replace_empty_with_na("personal_status") %>%
-#   mice_imputation("personal_status") %>%
-#   replace_empty_with_na("other_parties") %>%
-#   mice_imputation("other_parties") %>%
-#   replace_empty_with_na("property_magnitude") %>%
-#   mice_imputation("property_magnitude") %>%
-#   replace_empty_with_na("other_payment_plans") %>%
-#   mice_imputation("other_payment_plans") %>%
-#   replace_empty_with_na("housing") %>%
-#   mice_imputation("housing") %>%
-#   replace_empty_with_na("existing_credits") %>%
-#   mean_median_imputation("existing_credits", method = "median") %>%
-#   replace_empty_with_na("job") %>%
-#   mice_imputation("job")
+manual_hot_deck_imputation <- function(data, age_column, employment_column) {
+  df <- data.frame(age = data[[age_column]], years_of_employment = data[[employment_column]])
+  categorize_employment_years <- function(years) {
+    if (is.na(years)) return(NA)
+    else if (years == "unemployed") return("Unemployment")
+    else if (years == "<1") return("0 to 1 year")
+    else if (years == "1<=X<4") return("1 to 4 years")
+    else if (years == "4<=X<7") return("4 to 7 years")
+    else if (years == ">=7") return("More than 7 years")
+  }
+  df$employment_category <- sapply(df$years_of_employment, categorize_employment_years)
+  for (index in which(is.na(df$age))) {
+    donors <- df[!is.na(df$years_of_employment), ]
+    if (nrow(donors) == 0) next
+    donor_row <- donors[sample(nrow(donors), 1), ]
+    if (donor_row$years_of_employment == "unemployed") {
+      df$age[index] <- floor(mean(data[[age_column]][data[[employment_column]] == "unemployed"], na.rm = TRUE))
+    } else if (donor_row$years_of_employment %in% c("<1", "1<=X<4", "4<=X<7")) {
+      df$age[index] <- floor(mean(data[[age_column]][data[[employment_column]] == "<1"], na.rm = TRUE))
+    } else if (donor_row$years_of_employment == ">=7") {
+      df$age[index] <- floor(mean(data[[age_column]][data[[employment_column]] == ">=7"], na.rm = TRUE))
+    }
+  }
+  data[[age_column]] <- df$age
+  return(data)
+}
+
+
+# Pipeline to clean and impute data -------------------------------------------------
+
+
+# Function to count NAs for each column
+count_na <- function(data) {
+  sapply(data, function(col) sum(is.na(col)))
+}
+
+# Count NAs before imputation
+na_count_before <- count_na(data)
+print("NA counts before imputation:")
+print(na_count_before)
+
+
+cleaned_data <- data %>%
+  remove_high_na_rows() %>%
+  replace_empty_with_na("duration") %>%
+  mean_median_mode_imputation("duration", method = "mean") %>%
+  replace_empty_with_na("credit_history") %>%
+  knn_imputation("credit_history", "class", k_value = 10) %>%
+  replace_empty_with_na("purpose") %>%
+  mice_imputation("purpose") %>%
+  replace_empty_with_na("credit_amount") %>%
+  mean_median_mode_imputation("credit_amount", method = "mean") %>%
+  replace_empty_with_na("savings_status") %>%
+  mice_imputation("savings_status") %>%
+  replace_empty_with_na("employment") %>%
+  mean_median_mode_imputation("employment", method = "mode") %>%
+  replace_empty_with_na("personal_status") %>%
+  mice_imputation("personal_status") %>%
+  replace_empty_with_na("other_parties") %>%
+  mice_imputation("other_parties") %>%
+  replace_empty_with_na("residence_since") %>%
+  mean_median_mode_imputation("residence_since", method = "mean") %>%
+  replace_empty_with_na("property_magnitude") %>%
+  mice_imputation("property_magnitude") %>%
+  replace_empty_with_na("age")  %>%
+  manual_hot_deck_imputation("age", "employment") %>%
+  replace_empty_with_na("other_payment_plans") %>%
+  mice_imputation("other_payment_plans") %>%
+  replace_empty_with_na("housing") %>%
+  mice_imputation("housing") %>%
+  replace_empty_with_na("existing_credits") %>%
+  mean_median_mode_imputation("existing_credits", method = "median") %>%
+  replace_empty_with_na("job") %>%
+  mice_imputation("job") %>%
+  replace_empty_with_na("num_dependents") %>%
+  mice_imputation("num_dependents") %>%
+  replace_empty_with_na("own_telephone") %>%
+  mean_median_mode_imputation("own_telephone", method = "mode") %>%
+  replace_empty_with_na("foreign_worker") %>%
+  mean_median_mode_imputation("foreign_worker", method = "mode")
+  
+  # Count NAs after imputation
+  na_count_after <- count_na(cleaned_data)
+print("NA counts after imputation:")
+print(na_count_after)
+
 
 # Check the cleaned data
 head(cleaned_data)
+
+
