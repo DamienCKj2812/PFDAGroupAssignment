@@ -1,4 +1,5 @@
-data <- read.csv("5. credit_risk_classification.csv")
+data <- read.csv("cleaned_data.csv")
+
 library(DataExplorer)
 library(ggplot2)
 plot_missing(data)
@@ -89,6 +90,7 @@ data$foreign_worker=replace(data$foreign_worker, is.na(data$foreign_worker), get
 unique(data$class)
 
 #-------------------CLEAN NUM_DEPENDENTS---------------------------
+
 
 
 
