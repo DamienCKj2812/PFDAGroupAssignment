@@ -16,6 +16,36 @@ library(magrittr)
 
 
 data <- read.csv("./data_cleaning/5. credit_risk_classification.csv")
+str(data)
+
+# Function to count NAs for each column
+count_na <- function(data) {
+  sapply(data, function(col) sum(is.na(col)))
+}
+
+# Count NAs before imputation
+na_count_before <- count_na(data)
+print("NA counts before imputation:")
+print(na_count_before)
+
+# Check levels of every column
+# Loop through all columns and check levels for each categorical column
+sapply(data, function(col) {
+  if (is.character(col)) {
+    col <- as.factor(col)  # Convert to factor if it's character
+  }
+  if (is.factor(col)) {
+    return(levels(col))  # Return levels if it's a factor
+  }
+})
+
+data[] <- lapply(data, function(col) {
+  if (is.character(col)) {
+    col <- as.factor(col)  # Convert to factor if it's character
+  }
+  return(col)  # Return the column, converted to factor if it was character
+})
+
 
 # Imputation functions -------------------------------------------------------------
 
@@ -24,6 +54,12 @@ remove_high_na_rows <- function(data, threshold = 70) {
   na_percentage <- rowMeans(is.na(data)) * 100
   cleaned_data <- data[na_percentage <= threshold, ]
   return(cleaned_data)
+}
+
+replace_empty_with_na <- function(data, column_name) {
+  if (!column_name %in% names(data)) stop(paste("Column", column_name, "does not exist."))
+  data[[column_name]][data[[column_name]] == ""] <- NA
+  return(data)
 }
 
 mean_median_mode_imputation <- function(data, column_name, method = c("mean", "median", "mode")) {
@@ -92,11 +128,7 @@ mice_imputation <- function(data, column_name, m = 5) {
   return(completed_data)
 }
 
-replace_empty_with_na <- function(data, column_name) {
-  if (!column_name %in% names(data)) stop(paste("Column", column_name, "does not exist."))
-  data[[column_name]][data[[column_name]] == ""] <- NA
-  return(data)
-}
+
 
 knn_imputation <- function(data, target_column, class_column, k_value = 10) {
   # Create a new data frame with the target column and the class column for imputation
@@ -166,17 +198,6 @@ age_hot_deck_imputation <- function(data, age_column, employment_column) {
 
 # Pipeline to clean and impute data -------------------------------------------------
 
-
-# Function to count NAs for each column
-count_na <- function(data) {
-  sapply(data, function(col) sum(is.na(col)))
-}
-
-# Count NAs before imputation
-na_count_before <- count_na(data)
-print("NA counts before imputation:")
-print(na_count_before)
-
 cleaned_data <- data %>%
   remove_high_na_rows() %>%
   replace_empty_with_na("checking_status") %>%
@@ -194,7 +215,7 @@ cleaned_data <- data %>%
   replace_empty_with_na("employment") %>%
   mean_median_mode_imputation("employment", method = "mode") %>%
   replace_empty_with_na("installment_commitment") %>%
-  knn_imputation("installment_commitment", "credit_history", k_value = 10) %>%
+  mean_median_mode_imputation("installment_commitment", method = "median") %>%
   replace_empty_with_na("personal_status") %>%
   mice_imputation("personal_status") %>%
   replace_empty_with_na("other_parties") %>%
@@ -214,7 +235,7 @@ cleaned_data <- data %>%
   replace_empty_with_na("job") %>%
   mice_imputation("job") %>%
   replace_empty_with_na("num_dependents") %>%
-  mice_imputation("num_dependents") %>%
+  mean_median_mode_imputation("num_dependents", method = "median") %>%
   replace_empty_with_na("own_telephone") %>%
   mean_median_mode_imputation("own_telephone", method = "mode") %>%
   replace_empty_with_na("foreign_worker") %>%
@@ -225,8 +246,20 @@ na_count_after <- count_na(cleaned_data)
 print("NA counts after imputation:")
 print(na_count_after)
 
+# Check for the cleaned data type
+str(cleaned_data)
+
 # Check the cleaned data
 head(cleaned_data)
+
+sapply(cleaned_data, function(col) {
+  if (is.character(col)) {
+    col <- as.factor(col)  # Convert to factor if it's character
+  }
+  if (is.factor(col)) {
+    return(levels(col))  # Return levels if it's a factor
+  }
+})
 
 # Write to new csv file
 write.csv(cleaned_data, file = "./cleaned_data.csv", row.names = FALSE)
