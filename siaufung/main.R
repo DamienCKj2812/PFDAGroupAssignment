@@ -86,6 +86,9 @@ manual_hot_deck_imputation <- function(data, age_column, employment_column) {
     }
   }
   
+  #round up all value
+  df$age <- ceiling(df$age)
+  
   # Replace original age data with imputed values
   data[[age_column]] <- df$age
   
@@ -96,3 +99,4 @@ manual_hot_deck_imputation <- function(data, age_column, employment_column) {
 data <- manual_hot_deck_imputation(data, "age", "employment")
 total_na_age <- sum(is.na(data$age))
 print(total_na_age)
+
